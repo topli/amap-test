@@ -1,10 +1,9 @@
 import { useEffect } from "react"
 import * as THREE from "three"
+import * as TWEEN from '@tweenjs/tween.js'
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js"
 import './map.css'
 
-import * as turf from "@turf/turf"
 import path from "../path.json"
 
 const allPath = []
@@ -147,6 +146,7 @@ export default function MapContainer() {
         const data = customCoords.lngLatsToCoords([centerP])
         let object
         const objPosition = centerP
+
         // 创建 GL 图层
         const gllayer = new AMap.GLCustomLayer({
           // 图层的层级
@@ -182,6 +182,10 @@ export default function MapContainer() {
 
             // initGltf()
             initNPC()
+            initController()
+            setTimeout(() => {
+              animate()
+            }, 5000);
           },
           render: () => {
             // 这里必须执行！！重新设置 three 的 gl 上下文状态。
@@ -219,125 +223,134 @@ export default function MapContainer() {
         })
         map.add(gllayer)
 
+        let npc_step = 0
+        let _rayController = null
+        const getNextStepIndex = () => {
+          return npc_step + 1
+        }
 
+        // 是否镜头跟随NPC移动
+        const cameraFollow = true 
 
+        const initController = () => {
+          // 状态记录器
+          const target = { t: 0 }
+          // 获取第一段线段的移动时长，具体实现就是两个坐标点的距离除以速度参数speed
+          const duration = 5000
 
-        // // 是否镜头跟随NPC移动
-        // const cameraFollow = true 
+          _rayController = new TWEEN.Tween(target)
+            .to({ t: 1 }, duration)
+            .easing(TWEEN.Easing.Linear.None)
+            .onUpdate(() => {
+              
+              const NPC = duck
+              // 终点坐标索引
+              const nextIndex = getNextStepIndex()
+              console.log(npc_step);
+              console.log(nextIndex);
+              
+              
+              // 获取当前位置在路径上的位置
+              const point = new THREE.Vector3().copy(_PATH_COORDS[npc_step])
+              
+              // 计算下一个路径点的位置
+              const nextPoint = new THREE.Vector3().copy(_PATH_COORDS[nextIndex])
+              // 计算物体应该移动到的位置，并移动物体
+              const position = new THREE.Vector3().copy(point).lerp(nextPoint, target.t)
+              if (NPC) {
+                
+                // 更新NPC的位置
+                NPC.position.copy(position)
+              }
 
-        // const initController = () => {
-        //   // 状态记录器
-        //   const target = { t: 0 }
-        //   // 获取第一段线段的移动时长，具体实现就是两个坐标点的距离除以速度参数speed
-        //   const duration = this.getMoveDuration()
+              // 需要镜头跟随
+              if (cameraFollow) {
+                // 计算两个lngLat端点的中间值
+                // const pointLngLat = new THREE.Vector3().copy(_PATH_LNG_LAT[npc_step])
+                // const nextPointLngLat = new THREE.Vector3().copy(_PATH_LNG_LAT[nextIndex])
+                // const positionLngLat = new THREE.Vector3().copy(pointLngLat).lerp(nextPointLngLat, target.t)
+                // // 更新地图镜头位置
+                // updateMapCenter(positionLngLat)
+              }
 
-        //   this._rayController = new TWEEN.Tween(target)
-        //     .to({ t: 1 }, duration)
-        //     .easing(TWEEN.Easing.Linear.None)
-        //     .onUpdate(() => {
-        //       const NPC = duck
-        //       // 终点坐标索引
-        //       const nextIndex = this.getNextStepIndex()
-        //       // 获取当前位置在路径上的位置
-        //       const point = new THREE.Vector3().copy(_PATH_COORDS[this.npc_step])
-        //       // 计算下一个路径点的位置
-        //       const nextPoint = new THREE.Vector3().copy(_PATH_COORDS[nextIndex])
-        //       // 计算物体应该移动到的位置，并移动物体
-        //       const position = new THREE.Vector3().copy(point).lerp(nextPoint, target.t)
-        //       if (NPC) {
-        //         // 更新NPC的位置
-        //         NPC.position.copy(position)
-        //       }
+              // 更新地图朝向
+              if (cameraFollow) {
+                // const angle = getAngle(position, _PATH_COORDS[(npc_step + 3) % _PATH_COORDS.length])
+                // updateMapRotation(angle)
+              }
+            })
+            .onStart(() => {
+              console.log('onStart');
 
-        //       // 需要镜头跟随
-        //       if (cameraFollow) {
-        //         // 计算两个lngLat端点的中间值
-        //         const pointLngLat = new THREE.Vector3().copy(_PATH_LNG_LAT[this.npc_step])
-        //         const nextPointLngLat = new THREE.Vector3().copy(_PATH_LNG_LAT[nextIndex])
-        //         const positionLngLat = new THREE.Vector3().copy(pointLngLat).lerp(nextPointLngLat, target.t)
-        //         // 更新地图镜头位置
-        //         this.updateMapCenter(positionLngLat)
-        //       }
+              const nextPoint = _PATH_COORDS[(npc_step + 3) % _PATH_COORDS.length]
 
-        //       // 更新地图朝向
-        //       if (cameraFollow) {
-        //         const angle = this.getAngle(position, _PATH_COORDS[(this.npc_step + 3) % _PATH_COORDS.length])
-        //         this.updateMapRotation(angle)
-        //       }
-        //     })
-        //     .onStart(() => {
-        //       const { NPC } = this._conf
+              // 更新主体的正面朝向
+              if (duck) {
+                duck.lookAt(nextPoint)
+                duck.up.set(0, 0, 1)
+              }
+            })
+            .onComplete(() => {
+              console.log('onComplete');
+              // 更新到下一段路线
+              npc_step = npc_step + 1
+              // 调整时长
+              const duration = 5000
+              // 重新出发
+              target.t = 0
+              _rayController
+                .stop()
+                .to({ t: 1 }, duration)
+                .start()
+            })
+            .start()
+        }
 
-        //       const nextPoint = _PATH_COORDS[(this.npc_step + 3) % _PATH_COORDS.length]
+        // 逐帧动画处理
+        const animate = (time) => {
+          // 逐帧更新控制器，非常重要
+          if (_rayController) {
+            _rayController.update(time)
+          }
 
-        //       // 更新主体的正面朝向
-        //       if (NPC) {
-        //         NPC.lookAt(nextPoint)
-        //         NPC.up.set(0, 0, 1)
-        //       }
-        //     })
-        //     .onComplete(() => {
-        //       // 更新到下一段路线
-        //       this.npc_step = this.getNextStepIndex()
-        //       // 调整时长
-        //       const duration = this.getMoveDuration()
-        //       // 重新出发
-        //       target.t = 0
-        //       this._rayController
-        //         .stop()
-        //         .to({ t: 1 }, duration)
-        //         .start()
-        //     })
-        //     .start()
-        // }
+          if (map) {
+            map.render()
+          }
+          requestAnimationFrame(() => {
+            animate()
+          })
+        }
 
-        // // 逐帧动画处理
-        // animate (time) {
+        // 更新地图中心到指定位置
+        const updateMapCenter = (positionLngLat) => {
+          // duration = 0 防止画面抖动
+          map.panTo([positionLngLat.x, positionLngLat.y], 0)
+        }
 
-        //   // 逐帧更新控制器，非常重要
-        //   const { _rayController, _isMoving } = this
-        //   if (_rayController && _isMoving) {
-        //     _rayController.update(time)
-        //   }
+        //更新地图旋转角度
+        const updateMapRotation = (angle) => {
+          if (Math.abs(angle) >= 1.0) {
+            map.setRotation(angle, true, 0)
+          }
+        }
 
-        //   if (this.map) {
-        //     this.map.render()
-        //   }
-        //   requestAnimationFrame(() => {
-        //     this.animate()
-        //   })
-        // }
-
-        // // 更新地图中心到指定位置
-        // updateMapCenter (positionLngLat) {
-        //   // duration = 0 防止画面抖动
-        //   this.map.panTo([positionLngLat.x, positionLngLat.y], 0)
-        // }
-
-        // //更新地图旋转角度
-        // updateMapRotation (angle) {
-        //   if (Math.abs(angle) >= 1.0) {
-        //     this.map.setRotation(angle, true, 0)
-        //   }
-        // }
-
-        // /**
-        //  * 计算从当前位置到目标位置的移动方向与y轴的夹角
-        //  * 顺时针为正，逆时针为负
-        //  * @param {Object} origin 起始位置 {x,y}
-        //  * @param  {Object} target 终点位置 {x,y}
-        //  * @returns {number}
-        //  */
-        // getAngle (origin, target) {
-        //   const deltaX = target.x - origin.x
-        //   const deltaY = target.y - origin.y
-        //   const rad = Math.atan2(deltaY, deltaX)
-        //   let angle = rad * 180 / Math.PI
-        //   angle = angle >= 0 ? angle : 360 + angle
-        //   angle = 90 - angle // 将角度转换为与y轴的夹角
-        //   const res = angle >= -180 ? angle : angle + 360 // 确定顺逆时针方向
-        //   return res * -1
-        // }
+        /**
+         * 计算从当前位置到目标位置的移动方向与y轴的夹角
+         * 顺时针为正，逆时针为负
+         * @param {Object} origin 起始位置 {x,y}
+         * @param  {Object} target 终点位置 {x,y}
+         * @returns {number}
+         */
+        const getAngle = (origin, target) => {
+          const deltaX = target.x - origin.x
+          const deltaY = target.y - origin.y
+          const rad = Math.atan2(deltaY, deltaX)
+          let angle = rad * 180 / Math.PI
+          angle = angle >= 0 ? angle : 360 + angle
+          angle = 90 - angle // 将角度转换为与y轴的夹角
+          const res = angle >= -180 ? angle : angle + 360 // 确定顺逆时针方向
+          return res * -1
+        }
 
         // // 改变模型位置和角度
         // const centerPoint = turf.point(centerP)
