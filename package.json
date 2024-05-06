@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
+    "@amap/amap-jsapi-types": "^0.0.15",
     "@turf/turf": "^6.5.0",
+    "@tweenjs/tween.js": "^23.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.162.0"

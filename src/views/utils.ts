@@ -1,46 +1,31 @@
-export const getRoute = (map) => {
-  return new Promise((resolve, reject) => {
-    try {
-      //最终路径数据
-      const PATH_DATA = { features: [] }
+/**
+ * 计算从当前位置到目标位置的移动方向与y轴的夹角
+ * 顺时针为正，逆时针为负
+ * @param {Object} origin 起始位置 {x,y}
+ * @param  {Object} target 终点位置 {x,y}
+ * @returns {number}
+ */
+export const getAngle = (origin, target) => {
+  const deltaX = target.x - origin.x
+  const deltaY = target.y - origin.y
+  const rad = Math.atan2(deltaY, deltaX)
+  let angle = rad * 180 / Math.PI
+  angle = angle >= 0 ? angle : 360 + angle
+  angle = 90 - angle // 将角度转换为与y轴的夹角
+  const res = angle >= -180 ? angle : angle + 360 // 确定顺逆时针方向
+  return res * -1
+}
 
-      const path = []
-      path.push([113.532592, 22.788502]) //起点
-      path.push([113.532592, 22.788502]) //经过
-      path.push([113.532553, 22.788321]) //终点
 
-      map.plugin("AMap.DragRoute", function () {
-        //构造拖拽导航类
-        const route = new AMap.DragRoute(map, path, AMap.DrivingPolicy.LEAST_FEE)
-        //查询导航路径并开启拖拽导航
-        route.search()
-        route.on("complete", function ({ type, target, data }) {
-          // 获得路径数据后，处理成GeoJSON
-          const res = data.routes[0].steps.map((v) => {
-            const arr = v.path.map((o) => {
-              return [o.lng, o.lat]
-            })
-            return {
-              type: "Feature",
-              geometry: {
-                type: "MultiLineString",
-                coordinates: [arr],
-              },
-              properties: {
-                instruction: v.instruction,
-                distance: v.distance,
-                duration: v.duration,
-                road: v.road,
-              },
-            }
-          })
-          PATH_DATA.features = res
-          resolve(PATH_DATA)
-        })
-      })
-    } catch (error) {
-      console.error(error);
-      reject(null)
-    }
-  })
+// 更新地图中心到指定位置
+export const updateMapCenter = (map, lngLat) => {
+  // duration = 0 防止画面抖动
+  map.panTo([lngLat.x, lngLat.y], 0)
+}
+
+//更新地图旋转角度
+export const updateMapRotation = (map, angle) => {
+  if (Math.abs(angle) >= 1.0) {
+    map.setRotation(angle, true, 0)
+  }
 }

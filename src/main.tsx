@@ -1,5 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import '@amap/amap-jsapi-types';
+
 import App from './App.tsx'
 import './index.css'
 
