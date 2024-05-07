@@ -69,13 +69,13 @@ export default function MapContainer() {
       ],
       cameraFollow: false,
     },
-    // {
-    //   model: null,
-    //   paths: [
-    //     [113.532553, 22.78832]
-    //   ],
-    //   cameraFollow: false,
-    // }
+    {
+      model: null,
+      paths: [
+        [113.532553, 22.78832]
+      ],
+      cameraFollow: false,
+    }
   ]
   
   // 自定义层
@@ -83,7 +83,7 @@ export default function MapContainer() {
   let crdut = null
   let customCoords = null
   let mapCenter = null
-  const NPCGroup = new THREE.Group()
+  // const NPCGroup = new THREE.Group()
 
   useEffect(() => {
     // 模拟数据推送
@@ -103,16 +103,29 @@ export default function MapContainer() {
           models[0].paths.push(allPath[index1])
           
         }
-        // if (models[1].paths.length > 1) {
-        //   const frist = models[1].paths[1]
-        //   models[1].paths = [frist, allPath[index2]]
-        // } else {
-        //   models[1].paths.push(allPath[index2])
-        // }
-        models[0].controller.update()
-        console.log(models);
         
-      }, 5000)
+        const p = crdut.lngLatsToCoords(models[0].paths).map(item => {
+          return new THREE.Vector3().fromArray([item[0], item[1], []])
+        })
+        models[0].controller && models[0].controller.stop()
+        models[0].controller = new TWEEN.Tween(p[0]).easing(TWEEN.Easing.Linear.None).onUpdate(onUpdate(models[0].model))
+        models[0].controller.to(p[1], 800).start()
+        
+        if (models[1].paths.length > 1) {
+          const frist = models[1].paths[1]
+          models[1].paths = [frist, allPath[index2]]
+        } else {
+          models[1].paths.push(allPath[index2])
+        }
+        
+        const p2 = crdut.lngLatsToCoords(models[1].paths).map(item => {
+          return new THREE.Vector3().fromArray([item[0], item[1], []])
+        })
+        models[1].controller && models[1].controller.stop()
+        models[1].controller = new TWEEN.Tween(p2[0]).easing(TWEEN.Easing.Linear.None).onUpdate(onUpdate(models[1].model))
+        models[1].controller.to(p2[1], 800).start()
+        
+      }, 1000)
     }
     // 初始化模型
     const initModel = () => {
@@ -121,7 +134,7 @@ export default function MapContainer() {
         loader.load('https://a.amap.com/jsapi_demos/static/gltf/Duck.gltf', function (gltf) {
           const group = new THREE.Group()
           const model = gltf.scene.children[0]
-          model.rotation.set(0,4.5,0)
+          model.rotation.set(1.5, 1.2, 0)
           // 调试代码
           const axesHelper = new THREE.AxesHelper(50)
           axesHelper.position.set(1,1,1)
@@ -135,6 +148,20 @@ export default function MapContainer() {
         })
       })
     }
+
+    const onUpdate = function (model: object) {
+      return function (res) {
+        console.log(res);
+        
+        // const point = new THREE.Vector3().fromArray([res[0], res[1], res[2]])
+        // console.log(point);
+        model.position.copy(res)
+        model.lookAt(res)
+        model.up.set(0, 0, 1)
+        
+      }
+    }
+
     // 初始化物体
     const initNPC = async () => {
       const model = await initModel()
@@ -142,13 +169,25 @@ export default function MapContainer() {
         const m = models[i];
         m.model = model.clone()
         const startPoint = m.paths[0]
+        console.log(startPoint);
+        
         const coords = crdut.lngLatsToCoords([startPoint]).map(item => {
           return new THREE.Vector3().fromArray([item[0], item[1], []])
         })
+        console.log('coords', coords);
+        const start = [...coords[0]]
+        console.log('start', start);
+        
         m.model.position.copy(coords[0])
         // m.model.lookAt(coords[1])
         m.model.up.set(0, 0, 1)
-        NPCGroup.add(m.model)
+        // m.controller = new TWEEN.Tween(coords[0])
+        //   .easing(TWEEN.Easing.Linear.None)
+        //   .onUpdate(onUpdate(m.model))
+        //   .onStart(() => {
+        //     console.log('start');
+        //   })
+        // NPCGroup.add(m.model)
       }
     }
     const initLight = () => {
@@ -192,12 +231,17 @@ export default function MapContainer() {
             // 初始化灯光
             initLight()
             await initNPC()
-            initController()
+            // initController()
             
-            scene.add(NPCGroup)
+            for (let i = 0; i < models.length; i++) {
+              const m = models[i]
+              scene.add(m.model)
+              console.log(m.model);
+              
+            }
 
             simulationWS()
-            
+            animate()
             // setTimeout(() => {
             //   animate()
             // }, 5000)
@@ -255,18 +299,19 @@ export default function MapContainer() {
               return new THREE.Vector3().fromArray([item[0], item[1], []])
             })
             
-            console.log(crdut);
-            
             // 获取当前位置在路径上的位置
             const point = new THREE.Vector3().copy(coords[0])
             // 计算下一个路径点的位置
             const nextPoint = new THREE.Vector3().copy(coords[1])
             // 计算物体应该移动到的位置，并移动物体
             const position = new THREE.Vector3().copy(point).lerp(nextPoint, target.t)
+            console.log(position);
+            
             if (m.model) {
-              console.log({x: position.x, y: position.y, z: []});
+              console.log(m.model);
+              
               // 更新NPC的位置
-              m.model.position.copy({x: position.x, y: position.y, z: []})
+              m.model.position.copy(position)
             }
 
             // 需要镜头跟随
@@ -309,13 +354,11 @@ export default function MapContainer() {
       }
     }
     // 逐帧动画处理
-    const animate = (time) => {
-      console.log(time);
-      
+    const animate = () => {
       for (let i = 0; i < models.length; i++) {
         const m = models[i]
         if (m.controller) {
-          m.controller.update(time)
+          m.controller.update()
         }
       }
 
