@@ -12,6 +12,6 @@ export const mapLoader = () => {
   return AMapLoader.load(defOpt)
 }
 // 初始化map
-export const initMap = (el: string | Element, options: any) => {
+export const initMap = (el: string | Element, options: AMap.MapOptions) => {
   return new window.AMap.Map(el, options)
 }
